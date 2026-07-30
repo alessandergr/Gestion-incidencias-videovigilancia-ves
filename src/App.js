@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
 
 function App() {
@@ -7,10 +7,43 @@ function App() {
   const [mensaje, setMensaje] = useState("");
   const [cargando, setCargando] = useState(false);
 
+  const [camaras, setCamaras] = useState([]);
+  const [cargandoCamaras, setCargandoCamaras] = useState(false);
+  const [errorCamaras, setErrorCamaras] = useState("");
+  const [camaraSeleccionada, setCamaraSeleccionada] = useState(null);
+
   const [sesion, setSesion] = useState(() => {
     const datos = localStorage.getItem("sesionSrives");
     return datos ? JSON.parse(datos) : null;
   });
+
+  useEffect(() => {
+    if (!sesion || sesion.usuario.rol !== "OPERADOR") {
+      return;
+    }
+
+    const consultarCamaras = async () => {
+      setCargandoCamaras(true);
+      setErrorCamaras("");
+
+      try {
+        const respuesta = await fetch("http://localhost:3001/api/camaras");
+        const datos = await respuesta.json();
+
+        if (!respuesta.ok) {
+          throw new Error(datos.mensaje);
+        }
+
+        setCamaras(datos.camaras);
+      } catch (error) {
+        setErrorCamaras(error.message || "No se pudieron cargar las cámaras.");
+      } finally {
+        setCargandoCamaras(false);
+      }
+    };
+
+    consultarCamaras();
+  }, [sesion]);
 
   const iniciarSesion = async (evento) => {
     evento.preventDefault();
@@ -54,6 +87,8 @@ function App() {
     setSesion(null);
     setUsuario("");
     setContrasena("");
+    setCamaras([]);
+    setCamaraSeleccionada(null);
   };
 
   if (sesion) {
@@ -63,21 +98,63 @@ function App() {
           <header className="panel-header">
             <span className="logo">SRIVES</span>
 
-            <button className="boton-secundario" onClick={cerrarSesion}>
-              Salir
-            </button>
+            <div className="usuario-header">
+              <span>{sesion.usuario.nombre}</span>
+
+              <button className="boton-secundario" onClick={cerrarSesion}>
+                Salir
+              </button>
+            </div>
           </header>
 
           <div className="panel-contenido">
             <span className="rol">{sesion.usuario.rol}</span>
 
-            <h1>Hola, {sesion.usuario.nombre}</h1>
+            {sesion.usuario.rol === "OPERADOR" ? (
+              <>
+                <h1>Cámaras</h1>
+                <p className="texto-suave">Selecciona una cámara.</p>
 
-            <p>
-              {sesion.usuario.rol === "OPERADOR"
-                ? "Panel del operador."
-                : "Panel de validación."}
-            </p>
+                {cargandoCamaras && <p>Cargando cámaras...</p>}
+
+                {errorCamaras && <p className="error">{errorCamaras}</p>}
+
+                <div className="lista-camaras">
+                  {camaras.map((camara) => (
+                    <button
+                      key={camara.id}
+                      className={`camara ${
+                        camaraSeleccionada?.id === camara.id
+                          ? "camara-seleccionada"
+                          : ""
+                      }`}
+                      disabled={camara.estado === "INACTIVA"}
+                      onClick={() => setCamaraSeleccionada(camara)}
+                    >
+                      <div>
+                        <strong>{camara.codigo}</strong>
+                        <span>{camara.ubicacion}</span>
+                      </div>
+
+                      <span className="estado">{camara.estado}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {camaraSeleccionada && (
+                  <div className="seleccion">
+                    <span>Cámara seleccionada</span>
+                    <strong>{camaraSeleccionada.codigo}</strong>
+                    <p>{camaraSeleccionada.ubicacion}</p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <h1>Panel SIPCOP</h1>
+                <p className="texto-suave">Panel de validación de reportes.</p>
+              </>
+            )}
           </div>
         </section>
       </main>
@@ -100,7 +177,6 @@ function App() {
           value={usuario}
           onChange={(evento) => setUsuario(evento.target.value)}
           placeholder="Usuario"
-          autoComplete="username"
         />
 
         <label htmlFor="contrasena">Contraseña</label>
@@ -111,7 +187,6 @@ function App() {
           value={contrasena}
           onChange={(evento) => setContrasena(evento.target.value)}
           placeholder="Contraseña"
-          autoComplete="current-password"
         />
 
         {mensaje && <p className="error">{mensaje}</p>}

@@ -170,3 +170,88 @@ input {
     padding: 40px 25px;
   }
 }
+.usuario-header {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  color: #666666;
+  font-size: 14px;
+}
+
+.texto-suave {
+  margin: 0 0 28px;
+  color: #777777;
+}
+
+.lista-camaras {
+  display: grid;
+  gap: 10px;
+  margin-top: 25px;
+}
+
+.camara {
+  width: 100%;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fafafa;
+  color: #222222;
+  text-align: left;
+  border: 1px solid #dddddd;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.camara:hover {
+  background: #f3f3f3;
+  border-color: #aaaaaa;
+}
+
+.camara div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.camara div span {
+  color: #777777;
+  font-size: 13px;
+}
+
+.camara-seleccionada {
+  background: #ececec;
+  border-color: #333333;
+}
+
+.camara:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.estado {
+  color: #666666;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.seleccion {
+  margin-top: 25px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #eeeeee;
+  border-radius: 8px;
+}
+
+.seleccion span {
+  color: #777777;
+  font-size: 12px;
+}
+
+.seleccion p {
+  margin: 0;
+  color: #555555;
+  font-size: 14px;
+}
