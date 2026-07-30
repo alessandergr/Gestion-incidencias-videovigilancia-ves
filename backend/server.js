@@ -112,6 +112,28 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
+app.get("/api/camaras", async (req, res) => {
+  try {
+    const [camaras] = await pool.query(
+      `SELECT id, codigo, ubicacion, latitud, longitud, estado
+       FROM camaras
+       ORDER BY codigo`
+    );
+
+    res.json({
+      ok: true,
+      camaras,
+    });
+  } catch (error) {
+    console.error("Error al consultar cámaras:", error);
+
+    res.status(500).json({
+      ok: false,
+      mensaje: "No se pudieron consultar las cámaras.",
+    });
+  }
+});
+
 const PORT = process.env.PORT || 3001;
 
 app.listen(PORT, () => {
