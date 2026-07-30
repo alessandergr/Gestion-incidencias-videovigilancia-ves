@@ -2,6 +2,8 @@ require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 const pool = require("./db");
 
 const app = express();
@@ -26,7 +28,86 @@ app.get("/api/test-db", async (req, res) => {
     res.status(500).json({
       ok: false,
       mensaje: "No se pudo conectar con MySQL",
-      error: error.code,
+    });
+  }
+});
+
+app.post("/api/login", async (req, res) => {
+  try {
+    const { usuario, contrasena } = req.body;
+
+    if (!usuario || !contrasena) {
+      return res.status(400).json({
+        ok: false,
+        mensaje: "Completa el usuario y la contraseña.",
+      });
+    }
+
+    const [resultados] = await pool.query(
+      `SELECT id, nombre, usuario, contrasena, rol, estado
+       FROM usuarios
+       WHERE usuario = ?
+       LIMIT 1`,
+      [usuario.trim()]
+    );
+
+    if (resultados.length === 0) {
+      return res.status(401).json({
+        ok: false,
+        mensaje: "Usuario o contraseña incorrectos.",
+      });
+    }
+
+    const cuenta = resultados[0];
+
+    if (!cuenta.estado) {
+      return res.status(403).json({
+        ok: false,
+        mensaje: "La cuenta se encuentra desactivada.",
+      });
+    }
+
+    const contrasenaCorrecta = await bcrypt.compare(
+      contrasena,
+      cuenta.contrasena
+    );
+
+    if (!contrasenaCorrecta) {
+      return res.status(401).json({
+        ok: false,
+        mensaje: "Usuario o contraseña incorrectos.",
+      });
+    }
+
+    const token = jwt.sign(
+      {
+        id: cuenta.id,
+        usuario: cuenta.usuario,
+        rol: cuenta.rol,
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "8h",
+      }
+    );
+
+    return res.json({
+      ok: true,
+      mensaje: "Inicio de sesión correcto.",
+      token,
+      usuario: {
+        id: cuenta.id,
+        nombre: cuenta.nombre,
+        usuario: cuenta.usuario,
+        rol: cuenta.rol,
+      },
+    });
+  } catch (error) {
+    console.error("Error en el inicio de sesión:", error);
+
+    return res.status(500).json({
+      ok: false,
+      mensaje: "Ocurrió un error en el servidor.",
     });
   }
 });
