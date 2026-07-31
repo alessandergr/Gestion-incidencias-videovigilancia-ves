@@ -134,6 +134,46 @@ app.get("/api/camaras", async (req, res) => {
   }
 });
 
+app.post("/api/reportes", async (req, res) => {
+  try {
+    const { camara_id, usuario_id, tipo, descripcion } = req.body;
+
+    if (!camara_id || !usuario_id || !tipo || !descripcion?.trim()) {
+      return res.status(400).json({
+        ok: false,
+        mensaje: "Completa todos los campos.",
+      });
+    }
+
+    const [resultado] = await pool.query(
+      `INSERT INTO reportes
+       (camara_id, usuario_id, tipo, descripcion, estado)
+       VALUES (?, ?, ?, ?, 'PENDIENTE')`,
+      [camara_id, usuario_id, tipo, descripcion.trim()]
+    );
+
+    res.status(201).json({
+      ok: true,
+      mensaje: "Reporte registrado correctamente.",
+      reporte: {
+        id: resultado.insertId,
+        camara_id,
+        usuario_id,
+        tipo,
+        descripcion: descripcion.trim(),
+        estado: "PENDIENTE",
+      },
+    });
+  } catch (error) {
+    console.error("Error al registrar reporte:", error);
+
+    res.status(500).json({
+      ok: false,
+      mensaje: "No se pudo registrar el reporte.",
+    });
+  }
+});
+
 const PORT = process.env.PORT || 3001;
 
 app.listen(PORT, () => {
