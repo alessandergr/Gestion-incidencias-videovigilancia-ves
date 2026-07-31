@@ -142,12 +142,29 @@ function App() {
                 </div>
 
                 {camaraSeleccionada && (
-                  <div className="seleccion">
-                    <span>Cámara seleccionada</span>
-                    <strong>{camaraSeleccionada.codigo}</strong>
-                    <p>{camaraSeleccionada.ubicacion}</p>
-                  </div>
-                )}
+  <div className="seleccion">
+    <span>Cámara seleccionada</span>
+
+    <strong>{camaraSeleccionada.codigo}</strong>
+
+    <div className="dato-camara">
+      <span>Ubicación</span>
+      <p>{camaraSeleccionada.ubicacion}</p>
+    </div>
+
+    <div className="coordenadas">
+      <div className="dato-camara">
+        <span>Latitud</span>
+        <p>{camaraSeleccionada.latitud}</p>
+      </div>
+
+      <div className="dato-camara">
+        <span>Longitud</span>
+        <p>{camaraSeleccionada.longitud}</p>
+      </div>
+    </div>
+  </div>
+)}
               </>
             ) : (
               <>

@@ -255,3 +255,23 @@ input {
   color: #555555;
   font-size: 14px;
 }
+.dato-camara {
+  margin-top: 10px;
+}
+
+.dato-camara span {
+  color: #777777;
+  font-size: 12px;
+}
+
+.dato-camara p {
+  margin: 4px 0 0;
+  color: #333333;
+  font-size: 14px;
+}
+
+.coordenadas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
