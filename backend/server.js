@@ -44,7 +44,7 @@ app.post("/api/login", async (req, res) => {
     }
 
     const [resultados] = await pool.query(
-      `SELECT id, nombre, usuario, contrasena, rol, estado
+      `SELECT id, nombre, dni, grupo, usuario, contrasena, rol, estado
        FROM usuarios
        WHERE usuario = ?
        LIMIT 1`,
@@ -98,6 +98,8 @@ app.post("/api/login", async (req, res) => {
       usuario: {
         id: cuenta.id,
         nombre: cuenta.nombre,
+        dni: cuenta.dni,
+        grupo: cuenta.grupo,
         usuario: cuenta.usuario,
         rol: cuenta.rol,
       },
