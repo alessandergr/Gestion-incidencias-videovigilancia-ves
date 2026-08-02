@@ -208,7 +208,102 @@ app.get("/api/operadores/:dni", async (req, res) => {
     });
   }
 });
+app.get("/api/reportes", async (req, res) => {
+  try {
+    const [reportes] = await pool.query(
+      `SELECT
+        r.id,
+        r.codigo,
+        r.fecha,
+        r.hora_vista,
+        r.tipo,
+        r.estado,
+        c.codigo AS camara_codigo,
+        o.nombre AS operador_nombre,
+        o.grupo AS operador_grupo
+      FROM reportes r
+      INNER JOIN camaras c ON c.id = r.camara_id
+      INNER JOIN operadores o ON o.id = r.operador_id
+      ORDER BY r.id DESC`
+    );
 
+    return res.json({
+      ok: true,
+      reportes,
+    });
+  } catch (error) {
+    console.error("Error al consultar reportes:", error);
+
+    return res.status(500).json({
+      ok: false,
+      mensaje: "No se pudieron consultar los reportes.",
+    });
+  }
+});
+app.get("/api/reportes/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!/^\d+$/.test(id)) {
+      return res.status(400).json({
+        ok: false,
+        mensaje: "El identificador del reporte no es válido.",
+      });
+    }
+
+    const [resultados] = await pool.query(
+      `SELECT
+        r.id,
+        r.codigo,
+        r.fecha,
+        r.hora_vista,
+        r.hora_intervenida,
+        r.hora_finalizada,
+        r.tipo,
+        r.descripcion,
+        r.ubicacion_hecho,
+        r.latitud,
+        r.longitud,
+        r.unidad_tipo,
+        r.placa_unidad,
+        r.intervencion_megafono,
+        r.detalle_intervencion,
+        r.estado,
+        c.codigo AS camara_codigo,
+        c.ubicacion AS camara_ubicacion,
+        o.dni AS operador_dni,
+        o.nombre AS operador_nombre,
+        o.grupo AS operador_grupo,
+        u.usuario AS cuenta_registro
+      FROM reportes r
+      INNER JOIN camaras c ON c.id = r.camara_id
+      INNER JOIN operadores o ON o.id = r.operador_id
+      INNER JOIN usuarios u ON u.id = r.usuario_id
+      WHERE r.id = ?
+      LIMIT 1`,
+      [id]
+    );
+
+    if (resultados.length === 0) {
+      return res.status(404).json({
+        ok: false,
+        mensaje: "No se encontró el reporte.",
+      });
+    }
+
+    return res.json({
+      ok: true,
+      reporte: resultados[0],
+    });
+  } catch (error) {
+    console.error("Error al consultar el reporte:", error);
+
+    return res.status(500).json({
+      ok: false,
+      mensaje: "No se pudo consultar el detalle del reporte.",
+    });
+  }
+});
 app.post("/api/reportes", async (req, res) => {
   try {
     const {

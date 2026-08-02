@@ -1,14 +1,16 @@
 import Encabezado from "./Encabezado";
+import ListaReportes from "./ListaReportes";
 
 function PanelSipcop({ sesion, onSalir }) {
   return (
     <div className="aplicacion">
-      <Encabezado usuario={sesion.usuario} onSalir={onSalir} />
+      <Encabezado
+        usuario={sesion.usuario}
+        onSalir={onSalir}
+      />
 
       <main className="contenido">
-        <section className="bloque estado-vacio">
-          Los reportes pendientes aparecerán aquí en el Sprint 3.
-        </section>
+        <ListaReportes />
       </main>
     </div>
   );
