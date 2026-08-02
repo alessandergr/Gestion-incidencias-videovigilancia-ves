@@ -2,11 +2,24 @@ require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
+const http = require("http");
+const { Server } = require("socket.io");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const pool = require("./db");
 
 const app = express();
+
+const servidor = http.createServer(app);
+
+const io = new Server(servidor, {
+  cors: {
+    origin: "http://localhost:3000",
+    methods: ["GET", "POST"],
+  },
+});
+
+const camarasSeleccionadas = new Map();
 
 app.use(cors());
 app.use(express.json());
@@ -326,8 +339,59 @@ app.post("/api/reportes", async (req, res) => {
   }
 });
 
+io.on("connection", (socket) => {
+  console.log("Estación conectada:", socket.id);
+
+  socket.on("seleccionar-camara", ({ camara, usuario }, responder) => {
+    const otraEstacion = Array.from(
+      camarasSeleccionadas.entries()
+    ).find(
+      ([socketId, seleccion]) =>
+        socketId !== socket.id &&
+        seleccion.camara.id === camara.id
+    );
+
+    if (otraEstacion) {
+      const seleccion = otraEstacion[1];
+
+      responder({
+        coincidencia: true,
+        mensaje: `Otra estación está trabajando con ${camara.codigo}.`,
+        estacion: seleccion.usuario,
+      });
+
+      return;
+    }
+
+    camarasSeleccionadas.set(socket.id, {
+      camara,
+      usuario,
+    });
+
+    responder({
+      coincidencia: false,
+    });
+  });
+
+  socket.on("continuar-camara", ({ camara, usuario }) => {
+    camarasSeleccionadas.set(socket.id, {
+      camara,
+      usuario,
+    });
+  });
+
+  socket.on("liberar-camara", () => {
+    camarasSeleccionadas.delete(socket.id);
+  });
+
+  socket.on("disconnect", () => {
+    camarasSeleccionadas.delete(socket.id);
+    console.log("Estación desconectada:", socket.id);
+  });
+});
+
 const PORT = process.env.PORT || 3001;
 
-app.listen(PORT, () => {
+servidor.listen(PORT, () => {
   console.log(`Servidor funcionando en http://localhost:${PORT}`);
 });
