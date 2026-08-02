@@ -163,7 +163,10 @@ function PanelOperador({ sesion, onSalir }) {
             </div>
           </>
         ) : (
-          <ListaReportes />
+          <ListaReportes
+  rol="OPERADOR"
+  token={sesion.token}
+/>
         )}
       </main>
 

@@ -9,7 +9,6 @@ const jwt = require("jsonwebtoken");
 const pool = require("./db");
 
 const app = express();
-
 const servidor = http.createServer(app);
 
 const io = new Server(servidor, {
@@ -23,6 +22,47 @@ const camarasSeleccionadas = new Map();
 
 app.use(cors());
 app.use(express.json());
+
+function verificarToken(req, res, next) {
+  const autorizacion = req.headers.authorization;
+
+  if (!autorizacion?.startsWith("Bearer ")) {
+    return res.status(401).json({
+      ok: false,
+      mensaje: "Debes iniciar sesión.",
+    });
+  }
+
+  const token = autorizacion.split(" ")[1];
+
+  try {
+    req.usuario = jwt.verify(
+      token,
+      process.env.JWT_SECRET
+    );
+
+    next();
+  } catch (error) {
+    return res.status(401).json({
+      ok: false,
+      mensaje: "La sesión no es válida o ha vencido.",
+    });
+  }
+}
+
+function soloSipcop(req, res, next) {
+  const rol = String(req.usuario.rol).toUpperCase();
+
+  if (rol !== "SIPCOP") {
+    return res.status(403).json({
+      ok: false,
+      mensaje:
+        "Solo el personal de SIPCOP puede revisar el detalle completo.",
+    });
+  }
+
+  next();
+}
 
 app.get("/", (req, res) => {
   res.json({
@@ -181,17 +221,23 @@ app.get("/api/operadores/:dni", async (req, res) => {
     }
 
     const [resultados] = await pool.query(
-      `SELECT id, dni, nombre, grupo
-       FROM operadores
-       WHERE dni = ? AND estado = TRUE
-       LIMIT 1`,
+      `SELECT
+        id,
+        dni,
+        nombre,
+        grupo
+      FROM operadores
+      WHERE dni = ?
+        AND estado = TRUE
+      LIMIT 1`,
       [dni]
     );
 
     if (resultados.length === 0) {
       return res.status(404).json({
         ok: false,
-        mensaje: "No se encontró un operador con ese DNI.",
+        mensaje:
+          "No se encontró un operador con ese DNI.",
       });
     }
 
@@ -208,102 +254,150 @@ app.get("/api/operadores/:dni", async (req, res) => {
     });
   }
 });
-app.get("/api/reportes", async (req, res) => {
-  try {
-    const [reportes] = await pool.query(
-      `SELECT
-        r.id,
-        r.codigo,
-        r.fecha,
-        r.hora_vista,
-        r.tipo,
-        r.estado,
-        c.codigo AS camara_codigo,
-        o.nombre AS operador_nombre,
-        o.grupo AS operador_grupo
-      FROM reportes r
-      INNER JOIN camaras c ON c.id = r.camara_id
-      INNER JOIN operadores o ON o.id = r.operador_id
-      ORDER BY r.id DESC`
-    );
 
-    return res.json({
-      ok: true,
-      reportes,
-    });
-  } catch (error) {
-    console.error("Error al consultar reportes:", error);
+app.get(
+  "/api/reportes",
+  verificarToken,
+  async (req, res) => {
+    try {
+      const esSipcop =
+        String(req.usuario.rol).toUpperCase() ===
+        "SIPCOP";
 
-    return res.status(500).json({
-      ok: false,
-      mensaje: "No se pudieron consultar los reportes.",
-    });
-  }
-});
-app.get("/api/reportes/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
+      let consulta = `
+        SELECT
+          r.id,
+          r.codigo,
+          r.fecha,
+          r.hora_vista,
+          r.tipo,
+          r.estado,
+          c.codigo AS camara_codigo
+      `;
 
-    if (!/^\d+$/.test(id)) {
-      return res.status(400).json({
+      if (esSipcop) {
+        consulta += `,
+          o.nombre AS operador_nombre,
+          o.grupo AS operador_grupo
+        `;
+      }
+
+      consulta += `
+        FROM reportes r
+        INNER JOIN camaras c
+          ON c.id = r.camara_id
+      `;
+
+      if (esSipcop) {
+        consulta += `
+          INNER JOIN operadores o
+            ON o.id = r.operador_id
+        `;
+      }
+
+      consulta += `
+        ORDER BY r.id DESC
+      `;
+
+      const [reportes] = await pool.query(consulta);
+
+      return res.json({
+        ok: true,
+        reportes,
+      });
+    } catch (error) {
+      console.error(
+        "Error al consultar reportes:",
+        error
+      );
+
+      return res.status(500).json({
         ok: false,
-        mensaje: "El identificador del reporte no es válido.",
+        mensaje:
+          "No se pudieron consultar los reportes.",
       });
     }
+  }
+);
 
-    const [resultados] = await pool.query(
-      `SELECT
-        r.id,
-        r.codigo,
-        r.fecha,
-        r.hora_vista,
-        r.hora_intervenida,
-        r.hora_finalizada,
-        r.tipo,
-        r.descripcion,
-        r.ubicacion_hecho,
-        r.latitud,
-        r.longitud,
-        r.unidad_tipo,
-        r.placa_unidad,
-        r.intervencion_megafono,
-        r.detalle_intervencion,
-        r.estado,
-        c.codigo AS camara_codigo,
-        c.ubicacion AS camara_ubicacion,
-        o.dni AS operador_dni,
-        o.nombre AS operador_nombre,
-        o.grupo AS operador_grupo,
-        u.usuario AS cuenta_registro
-      FROM reportes r
-      INNER JOIN camaras c ON c.id = r.camara_id
-      INNER JOIN operadores o ON o.id = r.operador_id
-      INNER JOIN usuarios u ON u.id = r.usuario_id
-      WHERE r.id = ?
-      LIMIT 1`,
-      [id]
-    );
+app.get(
+  "/api/reportes/:id",
+  verificarToken,
+  soloSipcop,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
 
-    if (resultados.length === 0) {
-      return res.status(404).json({
+      if (!/^\d+$/.test(id)) {
+        return res.status(400).json({
+          ok: false,
+          mensaje:
+            "El identificador del reporte no es válido.",
+        });
+      }
+
+      const [resultados] = await pool.query(
+        `SELECT
+          r.id,
+          r.codigo,
+          r.fecha,
+          r.hora_vista,
+          r.hora_intervenida,
+          r.hora_finalizada,
+          r.tipo,
+          r.descripcion,
+          r.ubicacion_hecho,
+          r.latitud,
+          r.longitud,
+          r.unidad_tipo,
+          r.placa_unidad,
+          r.intervencion_megafono,
+          r.detalle_intervencion,
+          r.estado,
+          c.codigo AS camara_codigo,
+          c.ubicacion AS camara_ubicacion,
+          o.dni AS operador_dni,
+          o.nombre AS operador_nombre,
+          o.grupo AS operador_grupo,
+          u.usuario AS cuenta_registro
+        FROM reportes r
+        INNER JOIN camaras c
+          ON c.id = r.camara_id
+        INNER JOIN operadores o
+          ON o.id = r.operador_id
+        INNER JOIN usuarios u
+          ON u.id = r.usuario_id
+        WHERE r.id = ?
+        LIMIT 1`,
+        [id]
+      );
+
+      if (resultados.length === 0) {
+        return res.status(404).json({
+          ok: false,
+          mensaje: "No se encontró el reporte.",
+        });
+      }
+
+      return res.json({
+        ok: true,
+        reporte: resultados[0],
+      });
+    } catch (error) {
+      console.error(
+        "Error al consultar el detalle:",
+        error
+      );
+
+      return res.status(500).json({
         ok: false,
-        mensaje: "No se encontró el reporte.",
+        mensaje:
+          "No se pudo consultar el detalle del reporte.",
       });
     }
-
-    return res.json({
-      ok: true,
-      reporte: resultados[0],
-    });
-  } catch (error) {
-    console.error("Error al consultar el reporte:", error);
-
-    return res.status(500).json({
-      ok: false,
-      mensaje: "No se pudo consultar el detalle del reporte.",
-    });
   }
-});
+);
+
 app.post("/api/reportes", async (req, res) => {
   try {
     const {
@@ -359,7 +453,8 @@ app.post("/api/reportes", async (req, res) => {
     }
 
     const requierePlaca =
-      unidad_tipo === "ECO" || unidad_tipo === "AGUILA";
+      unidad_tipo === "ECO" ||
+      unidad_tipo === "AGUILA";
 
     if (requierePlaca && !placa_unidad?.trim()) {
       return res.status(400).json({
@@ -409,7 +504,9 @@ app.post("/api/reportes", async (req, res) => {
         latitud,
         longitud,
         unidad_tipo,
-        requierePlaca ? placa_unidad.trim().toUpperCase() : null,
+        requierePlaca
+          ? placa_unidad.trim().toUpperCase()
+          : null,
         intervencion_megafono ? 1 : 0,
         detalle_intervencion.trim(),
       ]
@@ -425,7 +522,10 @@ app.post("/api/reportes", async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error al registrar reporte:", error);
+    console.error(
+      "Error al registrar reporte:",
+      error
+    );
 
     return res.status(500).json({
       ok: false,
@@ -437,43 +537,49 @@ app.post("/api/reportes", async (req, res) => {
 io.on("connection", (socket) => {
   console.log("Estación conectada:", socket.id);
 
-  socket.on("seleccionar-camara", ({ camara, usuario }, responder) => {
-    const otraEstacion = Array.from(
-      camarasSeleccionadas.entries()
-    ).find(
-      ([socketId, seleccion]) =>
-        socketId !== socket.id &&
-        seleccion.camara.id === camara.id
-    );
+  socket.on(
+    "seleccionar-camara",
+    ({ camara, usuario }, responder) => {
+      const otraEstacion = Array.from(
+        camarasSeleccionadas.entries()
+      ).find(
+        ([socketId, seleccion]) =>
+          socketId !== socket.id &&
+          seleccion.camara.id === camara.id
+      );
 
-    if (otraEstacion) {
-      const seleccion = otraEstacion[1];
+      if (otraEstacion) {
+        const seleccion = otraEstacion[1];
 
-      responder({
-        coincidencia: true,
-        mensaje: `Otra estación está trabajando con ${camara.codigo}.`,
-        estacion: seleccion.usuario,
+        responder({
+          coincidencia: true,
+          mensaje: `Otra estación está trabajando con ${camara.codigo}.`,
+          estacion: seleccion.usuario,
+        });
+
+        return;
+      }
+
+      camarasSeleccionadas.set(socket.id, {
+        camara,
+        usuario,
       });
 
-      return;
+      responder({
+        coincidencia: false,
+      });
     }
+  );
 
-    camarasSeleccionadas.set(socket.id, {
-      camara,
-      usuario,
-    });
-
-    responder({
-      coincidencia: false,
-    });
-  });
-
-  socket.on("continuar-camara", ({ camara, usuario }) => {
-    camarasSeleccionadas.set(socket.id, {
-      camara,
-      usuario,
-    });
-  });
+  socket.on(
+    "continuar-camara",
+    ({ camara, usuario }) => {
+      camarasSeleccionadas.set(socket.id, {
+        camara,
+        usuario,
+      });
+    }
+  );
 
   socket.on("liberar-camara", () => {
     camarasSeleccionadas.delete(socket.id);
@@ -481,12 +587,18 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     camarasSeleccionadas.delete(socket.id);
-    console.log("Estación desconectada:", socket.id);
+
+    console.log(
+      "Estación desconectada:",
+      socket.id
+    );
   });
 });
 
 const PORT = process.env.PORT || 3001;
 
 servidor.listen(PORT, () => {
-  console.log(`Servidor funcionando en http://localhost:${PORT}`);
+  console.log(
+    `Servidor funcionando en http://localhost:${PORT}`
+  );
 });

@@ -1,12 +1,26 @@
 import { useEffect, useState } from "react";
 
-function ListaReportes() {
+function ListaReportes({ rol, token }) {
+  const esSipcop = String(rol).toUpperCase() === "SIPCOP";
+
   const [reportes, setReportes] = useState([]);
   const [mensaje, setMensaje] = useState("Cargando reportes...");
   const [cargando, setCargando] = useState(false);
+  const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [reporteSeleccionado, setReporteSeleccionado] =
     useState(null);
-  const [cargandoDetalle, setCargandoDetalle] = useState(false);
+
+  const leerRespuesta = async (respuesta) => {
+    const texto = await respuesta.text();
+
+    try {
+      return JSON.parse(texto);
+    } catch {
+      throw new Error(
+        "El servidor devolvió una respuesta incorrecta. Reinicia el backend."
+      );
+    }
+  };
 
   const consultarReportes = async () => {
     setCargando(true);
@@ -14,10 +28,15 @@ function ListaReportes() {
 
     try {
       const respuesta = await fetch(
-        "http://localhost:3001/api/reportes"
+        "http://localhost:3001/api/reportes",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
       );
 
-      const datos = await respuesta.json();
+      const datos = await leerRespuesta(respuesta);
 
       if (!respuesta.ok) {
         throw new Error(datos.mensaje);
@@ -41,17 +60,25 @@ function ListaReportes() {
 
   useEffect(() => {
     consultarReportes();
-  }, []);
+  }, [token]);
 
   const abrirDetalle = async (id) => {
+    if (!esSipcop) return;
+
     setCargandoDetalle(true);
+    setMensaje("");
 
     try {
       const respuesta = await fetch(
-        `http://localhost:3001/api/reportes/${id}`
+        `http://localhost:3001/api/reportes/${id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
       );
 
-      const datos = await respuesta.json();
+      const datos = await leerRespuesta(respuesta);
 
       if (!respuesta.ok) {
         throw new Error(datos.mensaje);
@@ -71,7 +98,13 @@ function ListaReportes() {
     if (!fecha) return "-";
 
     const fechaTexto = String(fecha).slice(0, 10);
-    const [anio, mes, dia] = fechaTexto.split("-");
+    const partes = fechaTexto.split("-");
+
+    if (partes.length !== 3) {
+      return fechaTexto;
+    }
+
+    const [anio, mes, dia] = partes;
 
     return `${dia}/${mes}/${anio}`;
   };
@@ -87,7 +120,15 @@ function ListaReportes() {
       return "Sin unidad";
     }
 
-    return unidad === "AGUILA" ? "Águila" : unidad;
+    if (unidad === "AGUILA") {
+      return "Águila";
+    }
+
+    if (unidad === "AMBULANCIA") {
+      return "Ambulancia";
+    }
+
+    return unidad;
   };
 
   return (
@@ -121,9 +162,12 @@ function ListaReportes() {
                   <th>Fecha</th>
                   <th>Cámara</th>
                   <th>Incidencia</th>
-                  <th>Operador</th>
+
+                  {esSipcop && <th>Operador</th>}
+
                   <th>Estado</th>
-                  <th>Acción</th>
+
+                  {esSipcop && <th>Acción</th>}
                 </tr>
               </thead>
 
@@ -140,12 +184,15 @@ function ListaReportes() {
 
                     <td>{reporte.tipo}</td>
 
-                    <td>
-                      {reporte.operador_nombre}
-                      <small>
-                        Grupo {reporte.operador_grupo}
-                      </small>
-                    </td>
+                    {esSipcop && (
+                      <td>
+                        {reporte.operador_nombre}
+
+                        <small>
+                          Grupo {reporte.operador_grupo}
+                        </small>
+                      </td>
+                    )}
 
                     <td>
                       <span
@@ -157,16 +204,20 @@ function ListaReportes() {
                       </span>
                     </td>
 
-                    <td>
-                      <button
-                        type="button"
-                        className="boton-ver-detalle"
-                        onClick={() => abrirDetalle(reporte.id)}
-                        disabled={cargandoDetalle}
-                      >
-                        Ver detalle
-                      </button>
-                    </td>
+                    {esSipcop && (
+                      <td>
+                        <button
+                          type="button"
+                          className="boton-ver-detalle"
+                          onClick={() =>
+                            abrirDetalle(reporte.id)
+                          }
+                          disabled={cargandoDetalle}
+                        >
+                          Ver detalle
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -175,7 +226,7 @@ function ListaReportes() {
         )}
       </section>
 
-      {reporteSeleccionado && (
+      {esSipcop && reporteSeleccionado && (
         <div className="fondo-alerta">
           <section className="detalle-reporte">
             <div className="encabezado-detalle-reporte">
@@ -190,7 +241,9 @@ function ListaReportes() {
               <button
                 type="button"
                 className="boton-cerrar-detalle"
-                onClick={() => setReporteSeleccionado(null)}
+                onClick={() =>
+                  setReporteSeleccionado(null)
+                }
               >
                 ×
               </button>
@@ -303,7 +356,9 @@ function ListaReportes() {
 
               <Dato
                 titulo="Placa"
-                valor={reporteSeleccionado.placa_unidad || "-"}
+                valor={
+                  reporteSeleccionado.placa_unidad || "-"
+                }
               />
 
               <Dato
@@ -328,7 +383,9 @@ function ListaReportes() {
               <button
                 type="button"
                 className="boton-continuar"
-                onClick={() => setReporteSeleccionado(null)}
+                onClick={() =>
+                  setReporteSeleccionado(null)
+                }
               >
                 Regresar
               </button>

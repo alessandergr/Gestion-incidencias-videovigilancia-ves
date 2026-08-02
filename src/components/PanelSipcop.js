@@ -10,7 +10,10 @@ function PanelSipcop({ sesion, onSalir }) {
       />
 
       <main className="contenido">
-        <ListaReportes />
+        <ListaReportes
+          rol="SIPCOP"
+          token={sesion.token}
+        />
       </main>
     </div>
   );
