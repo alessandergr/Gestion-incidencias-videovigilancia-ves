@@ -13,6 +13,8 @@ function ListaReportes({
   const [mensaje, setMensaje] = useState("Cargando reportes...");
   const [cargando, setCargando] = useState(false);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
+  const [actualizandoEstado, setActualizandoEstado] =
+    useState(false);
   const [reporteSeleccionado, setReporteSeleccionado] =
     useState(null);
 
@@ -48,21 +50,25 @@ function ListaReportes({
         throw new Error(datos.mensaje);
       }
 
-     const reportesFiltrados = filtroEstado
-  ? datos.reportes.filter(
-      (reporte) =>
-        String(reporte.estado).toUpperCase() ===
-        String(filtroEstado).toUpperCase()
-    )
-  : datos.reportes;
+      const estadosPermitidos = String(filtroEstado)
+        .split(",")
+        .map((estado) => estado.trim().toUpperCase())
+        .filter(Boolean);
 
-setReportes(reportesFiltrados);
+      const reportesFiltrados =
+        estadosPermitidos.length > 0
+          ? datos.reportes.filter((reporte) =>
+              estadosPermitidos.includes(
+                String(reporte.estado).toUpperCase()
+              )
+            )
+          : datos.reportes;
 
-setMensaje(
-  reportesFiltrados.length === 0
-    ? mensajeVacio
-    : ""
-);
+      setReportes(reportesFiltrados);
+
+      setMensaje(
+        reportesFiltrados.length === 0 ? mensajeVacio : ""
+      );
     } catch (error) {
       setMensaje(
         error.message || "No se pudieron cargar los reportes."
@@ -72,9 +78,10 @@ setMensaje(
     }
   };
 
-useEffect(() => {
-  consultarReportes();
-}, [token, filtroEstado]);
+  useEffect(() => {
+    consultarReportes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, filtroEstado]);
 
   const abrirDetalle = async (id) => {
     if (!esSipcop) return;
@@ -105,6 +112,54 @@ useEffect(() => {
       );
     } finally {
       setCargandoDetalle(false);
+    }
+  };
+
+  const cambiarEstado = async (nuevoEstado) => {
+    if (!esSipcop || !reporteSeleccionado) return;
+
+    const accion =
+      nuevoEstado === "VALIDADO" ? "validar" : "descartar";
+
+    const confirmado = window.confirm(
+      `¿Confirmas que deseas ${accion} el reporte ${reporteSeleccionado.codigo}?`
+    );
+
+    if (!confirmado) return;
+
+    setActualizandoEstado(true);
+    setMensaje("");
+
+    try {
+      const respuesta = await fetch(
+        `http://localhost:3001/api/reportes/${reporteSeleccionado.id}/estado`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            estado: nuevoEstado,
+          }),
+        }
+      );
+
+      const datos = await leerRespuesta(respuesta);
+
+      if (!respuesta.ok) {
+        throw new Error(datos.mensaje);
+      }
+
+      setReporteSeleccionado(null);
+      await consultarReportes();
+      setMensaje(datos.mensaje);
+    } catch (error) {
+      setMensaje(
+        error.message || "No se pudo actualizar el reporte."
+      );
+    } finally {
+      setActualizandoEstado(false);
     }
   };
 
@@ -144,6 +199,10 @@ useEffect(() => {
 
     return unidad;
   };
+
+  const reportePendiente =
+    String(reporteSeleccionado?.estado).toUpperCase() ===
+    "PENDIENTE";
 
   return (
     <>
@@ -258,6 +317,7 @@ useEffect(() => {
                 onClick={() =>
                   setReporteSeleccionado(null)
                 }
+                disabled={actualizandoEstado}
               >
                 ×
               </button>
@@ -396,13 +456,42 @@ useEffect(() => {
             <div className="acciones-alerta">
               <button
                 type="button"
-                className="boton-continuar"
+                className="boton-cancelar"
                 onClick={() =>
                   setReporteSeleccionado(null)
                 }
+                disabled={actualizandoEstado}
               >
                 Regresar
               </button>
+
+              {reportePendiente && (
+                <>
+                  <button
+                    type="button"
+                    className="boton-descartar"
+                    onClick={() =>
+                      cambiarEstado("DESCARTADO")
+                    }
+                    disabled={actualizandoEstado}
+                  >
+                    Descartar
+                  </button>
+
+                  <button
+                    type="button"
+                    className="boton-validar"
+                    onClick={() =>
+                      cambiarEstado("VALIDADO")
+                    }
+                    disabled={actualizandoEstado}
+                  >
+                    {actualizandoEstado
+                      ? "Procesando..."
+                      : "Validar"}
+                  </button>
+                </>
+              )}
             </div>
           </section>
         </div>

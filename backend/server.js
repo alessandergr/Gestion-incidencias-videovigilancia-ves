@@ -397,6 +397,66 @@ app.get(
     }
   }
 );
+app.patch(
+  "/api/reportes/:id/estado",
+  verificarToken,
+  soloSipcop,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { estado } = req.body;
+
+      if (!/^\d+$/.test(id)) {
+        return res.status(400).json({
+          ok: false,
+          mensaje: "El identificador del reporte no es válido.",
+        });
+      }
+
+      const estadosPermitidos = ["VALIDADO", "DESCARTADO"];
+      const nuevoEstado = String(estado).toUpperCase();
+
+      if (!estadosPermitidos.includes(nuevoEstado)) {
+        return res.status(400).json({
+          ok: false,
+          mensaje: "El estado seleccionado no es válido.",
+        });
+      }
+
+      const [resultado] = await pool.query(
+        `UPDATE reportes
+         SET estado = ?
+         WHERE id = ?
+           AND estado = 'PENDIENTE'`,
+        [nuevoEstado, id]
+      );
+
+      if (resultado.affectedRows === 0) {
+        return res.status(409).json({
+          ok: false,
+          mensaje:
+            "El reporte no existe o ya fue procesado anteriormente.",
+        });
+      }
+
+      return res.json({
+        ok: true,
+        mensaje:
+          nuevoEstado === "VALIDADO"
+            ? "Reporte validado correctamente."
+            : "Reporte descartado correctamente.",
+        estado: nuevoEstado,
+      });
+    } catch (error) {
+      console.error("Error al actualizar el reporte:", error);
+
+      return res.status(500).json({
+        ok: false,
+        mensaje: "No se pudo actualizar el estado del reporte.",
+      });
+    }
+  }
+);
 
 app.post("/api/reportes", async (req, res) => {
   try {
