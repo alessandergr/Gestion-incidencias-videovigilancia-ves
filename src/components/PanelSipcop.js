@@ -13,6 +13,9 @@ function PanelSipcop({ sesion, onSalir }) {
         <ListaReportes
           rol="SIPCOP"
           token={sesion.token}
+          titulo="Reportes pendientes"
+          filtroEstado="PENDIENTE"
+          mensajeVacio="No hay reportes pendientes por revisar."
         />
       </main>
     </div>

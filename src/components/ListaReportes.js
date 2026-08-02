@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 
-function ListaReportes({ rol, token }) {
+function ListaReportes({
+  rol,
+  token,
+  titulo = "Reportes registrados",
+  filtroEstado = "",
+  mensajeVacio = "Todavía no hay reportes registrados.",
+}) {
   const esSipcop = String(rol).toUpperCase() === "SIPCOP";
 
   const [reportes, setReportes] = useState([]);
@@ -42,13 +48,21 @@ function ListaReportes({ rol, token }) {
         throw new Error(datos.mensaje);
       }
 
-      setReportes(datos.reportes);
+     const reportesFiltrados = filtroEstado
+  ? datos.reportes.filter(
+      (reporte) =>
+        String(reporte.estado).toUpperCase() ===
+        String(filtroEstado).toUpperCase()
+    )
+  : datos.reportes;
 
-      setMensaje(
-        datos.reportes.length === 0
-          ? "Todavía no hay reportes registrados."
-          : ""
-      );
+setReportes(reportesFiltrados);
+
+setMensaje(
+  reportesFiltrados.length === 0
+    ? mensajeVacio
+    : ""
+);
     } catch (error) {
       setMensaje(
         error.message || "No se pudieron cargar los reportes."
@@ -58,9 +72,9 @@ function ListaReportes({ rol, token }) {
     }
   };
 
-  useEffect(() => {
-    consultarReportes();
-  }, [token]);
+useEffect(() => {
+  consultarReportes();
+}, [token, filtroEstado]);
 
   const abrirDetalle = async (id) => {
     if (!esSipcop) return;
@@ -135,7 +149,7 @@ function ListaReportes({ rol, token }) {
     <>
       <section className="bloque">
         <div className="titulo-bloque">
-          <h2>Reportes registrados</h2>
+          <h2>{titulo}</h2>
 
           <div className="acciones-lista-reportes">
             <span>{reportes.length}</span>
